@@ -1,0 +1,32 @@
+# 0. 생성
+urface@MY-20220518MUKK:~/midas_test$ docker run --rm python:3.12 bash -c "
+pip install werkzeug -q && python3 -c \"
+from werkzeug.security import generate_password_hash
+print(generate_password_hash('airflow'))
+\"
+"
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.0.1 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip
+scrypt:32768:8:1$R4Q4mBS1SywPDijC$8896ed88d58a8549160addbf6c5e8631720afc7c2da9aba2c7c472f87b7758a16617954d528648590a0f477180b618498dde875f8489defeb845058c7f1ace9b
+
+# 1. 사용자 삽입
+docker exec test-postgres psql -U midas_admin -d airflow_db -c "
+INSERT INTO ab_user (first_name, last_name, username, email, active, created_on, changed_on, password)
+VALUES ('Air', 'Flow', 'airflow', 'airflow@example.com', true, NOW(), NOW(), 'scrypt:32768:8:1\$yhyOZzZkL0TTT1Hf\$aac865fcdbfa331a8db311923e3b7ea488e73a29819ca26b11c8901f8f1581d631ea53ea5e919712cb28664769b387355d91fe5d04cf24cdd8ad1a6da17b9967')
+ON CONFLICT (username) DO NOTHING;
+"
+
+# 2. Admin 역할 부여
+docker exec test-postgres psql -U midas_admin -d airflow_db -c "
+INSERT INTO ab_user_role (user_id, role_id)
+SELECT u.id, r.id FROM ab_user u, ab_role r 
+WHERE u.username = 'airflow' AND r.name = 'Admin'
+ON CONFLICT DO NOTHING;
+"
+
+# 3. 확인
+docker exec test-postgres psql -U midas_admin -d airflow_db -c "
+SELECT username, email, active FROM ab_user WHERE username = 'airflow';
+"
